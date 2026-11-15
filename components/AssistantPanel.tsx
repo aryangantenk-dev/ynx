@@ -14,6 +14,7 @@ import {
   User,
 } from "lucide-react";
 import type { ChatMessage, Checkpoint } from "@/lib/types";
+import { modelLabel } from "@/lib/models";
 
 const QUICK_ACTIONS = [
   "Add authentication",
@@ -44,6 +45,7 @@ export default function AssistantPanel({
   messages,
   isGenerating,
   mode,
+  model,
   notice,
   error,
   checkpoints,
@@ -56,6 +58,8 @@ export default function AssistantPanel({
   messages: ChatMessage[];
   isGenerating: boolean;
   mode: "live" | "demo" | null;
+  /** Model id the last generation actually used, if any. */
+  model: string | null;
   notice: string | null;
   error: string | null;
   checkpoints: Checkpoint[];
@@ -108,7 +112,13 @@ export default function AssistantPanel({
             aria-hidden="true"
           />
           <span className={isGenerating ? "text-[var(--accent)]" : "text-[var(--muted)]"}>
-            {isGenerating ? "Streaming…" : mode === "live" ? "Model connected" : "Ready"}
+            {isGenerating
+              ? "Streaming…"
+              : mode === "live" && model
+                ? modelLabel(model)
+                : mode === "demo"
+                  ? "Demo mode"
+                  : "Ready"}
           </span>
         </span>
       </header>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, Checkpoint, ProjectFile } from "./types";
 import { extractFiles, extractProse, mergeFiles } from "./parse-stream";
 import { SEED_FILES } from "./seed-project";
+import { DEFAULT_MODEL_ID, isAllowedModel, modelLabel } from "./models";
 
 const STORAGE_KEY = "yanzx-ai:workspace:v1";
 
@@ -33,7 +34,13 @@ interface StreamEvent {
   mode?: "live" | "demo";
   notice?: string;
   model?: string;
+  modelLabel?: string;
+  fallbackFrom?: string | null;
+  rejectedModel?: boolean;
+  requestedModel?: string;
 }
+
+const MODEL_STORAGE_KEY = "yanzx-ai:model:v1";
 
 export function useGeneration() {
   const [files, setFiles] = useState<ProjectFile[]>(SEED_FILES);
@@ -46,6 +53,9 @@ export function useGeneration() {
   const [mode, setMode] = useState<GenerationMode>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL_ID);
+  /** The model the last completed generation actually used. */
+  const [activeModel, setActiveModel] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const filesRef = useRef<ProjectFile[]>(files);
@@ -74,10 +84,25 @@ export function useGeneration() {
       }
     } catch {
       /* corrupt storage — fall back to the seed project */
+    }
+    try {
+      const storedModel = localStorage.getItem(MODEL_STORAGE_KEY);
+      if (isAllowedModel(storedModel)) setModel(storedModel);
+    } catch {
+      /* storage blocked — keep the default model */
     } finally {
       setHydrated(true);
     }
   }, []);
+
+  /* Remember the user's model choice, and adopt the deployment default once. */
+  useEffect(() => {
+    try {
+      localStorage.setItem(MODEL_STORAGE_KEY, model);
+    } catch {
+      /* ignore */
+    }
+  }, [model]);
 
   /* ── persist (best effort: a quota error never breaks the session) ── */
   useEffect(() => {
@@ -176,6 +201,7 @@ export function useGeneration() {
               language: f.language,
             })),
             history,
+            model,
           }),
           signal: controller.signal,
         });
@@ -219,6 +245,17 @@ export function useGeneration() {
             }
             if (event.mode) setMode(event.mode);
             if (event.notice) setNotice(event.notice);
+            if (event.mode === "live" && typeof event.model === "string") {
+              setActiveModel(event.model);
+              if (event.rejectedModel) {
+                setNotice(
+                  `That model is not in the allowlist — used ${event.modelLabel ?? modelLabel(event.model)} instead.`
+                );
+              }
+            }
+            if (event.mode === "demo" && typeof event.fallbackFrom === "string") {
+              setActiveModel(null);
+            }
             if (event.delta) {
               raw += event.delta;
               applyStream(raw);
@@ -290,6 +327,7 @@ export function useGeneration() {
     setError(null);
     setNotice(null);
     setMode(null);
+    setActiveModel(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -308,6 +346,9 @@ export function useGeneration() {
     mode,
     lastPrompt,
     hydrated,
+    model,
+    setModel,
+    activeModel,
     setActiveFile,
     generate,
     stop,

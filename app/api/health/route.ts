@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID, isAllowedModel } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const apiKey = process.env.AI_API_KEY ?? process.env.YANZX_API_KEY ?? "";
   const baseUrl = process.env.AI_BASE_URL ?? "";
+  const configuredModel = process.env.AI_MODEL ?? "";
+  const modelAllowed = configuredModel === "" || isAllowedModel(configuredModel);
 
   return NextResponse.json({
     ok: true,
@@ -18,7 +21,10 @@ export async function GET() {
     generator: {
       providerConfigured: Boolean(apiKey && baseUrl),
       baseUrlHost: baseUrl ? safeHost(baseUrl) : null,
-      model: process.env.AI_MODEL ?? null,
+      // Reports only whether AI_MODEL is valid, not the key or token itself.
+      model: isAllowedModel(configuredModel) ? configuredModel : DEFAULT_MODEL_ID,
+      modelAllowed,
+      allowlistSize: ALLOWED_MODEL_IDS.length,
       demoMode: process.env.AI_DEMO_MODE === "demo" || !apiKey || !baseUrl,
     },
   });

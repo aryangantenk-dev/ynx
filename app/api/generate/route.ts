@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { SYSTEM_PROMPT, EDIT_HINT } from "@/lib/prompt";
 import { streamDemoProject } from "@/lib/demo-generator";
+import { DEFAULT_MODEL_ID, isAllowedModel, modelLabel } from "@/lib/models";
 import type { ChatMessage, ProjectFile } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -16,7 +17,8 @@ const MAX_FILE_CHARS = 24_000;
 interface ProviderConfig {
   apiKey: string;
   baseUrl: string;
-  model: string;
+  /** Default model for this deployment, already validated against the catalog. */
+  defaultModel: string;
   demo: boolean;
 }
 
@@ -27,9 +29,11 @@ interface ProviderConfig {
 function readConfig(): ProviderConfig {
   const apiKey = process.env.AI_API_KEY ?? process.env.YANZX_API_KEY ?? "";
   const baseUrl = (process.env.AI_BASE_URL ?? "").replace(/\/+$/, "");
-  const model = process.env.AI_MODEL ?? "yanzx-builder-v1";
+  const configured = process.env.AI_MODEL ?? "";
+  // An unknown AI_MODEL falls back to the catalog default instead of failing.
+  const defaultModel = isAllowedModel(configured) ? configured : DEFAULT_MODEL_ID;
   const forcedDemo = process.env.AI_DEMO_MODE === "demo";
-  return { apiKey, baseUrl, model, demo: forcedDemo || !apiKey || !baseUrl };
+  return { apiKey, baseUrl, defaultModel, demo: forcedDemo || !apiKey || !baseUrl };
 }
 
 /* ─────────────────────────────── rate limit ─────────────────────────────── */
@@ -175,6 +179,7 @@ interface GenerateBody {
   prompt?: unknown;
   files?: unknown;
   history?: unknown;
+  model?: unknown;
 }
 
 function sanitiseFiles(input: unknown): ProjectFile[] {
@@ -237,10 +242,16 @@ export async function POST(request: Request) {
   const history = sanitiseHistory(body.history);
   const config = readConfig();
 
+  // A client may *prefer* a model, but only ids in the catalog are forwarded.
+  const requested = body.model;
+  const model = isAllowedModel(requested) ? requested : config.defaultModel;
+  const rejectedModel =
+    typeof requested === "string" && requested.length > 0 && requested !== model;
+
   /* ── demo mode: no provider configured, everything still works ── */
   if (config.demo) {
     return makeStream(async (send, signal) => {
-      send({ mode: "demo" });
+      send({ mode: "demo", requestedModel: model });
       for await (const chunk of streamDemoProject(prompt)) {
         if (signal.aborted) return;
         send({ delta: chunk });
@@ -272,7 +283,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model,
+        model,
         stream: true,
         temperature: 0.35,
         messages: upstreamMessages,
@@ -281,7 +292,11 @@ export async function POST(request: Request) {
   } catch {
     // Network failure: degrade to the local generator instead of a dead end.
     return makeStream(async (send, signal) => {
-      send({ mode: "demo", notice: "AI provider unreachable — using the local generator." });
+      send({
+        mode: "demo",
+        notice: `Could not reach the AI provider — ${modelLabel(model)} unavailable, so the local generator ran instead.`,
+        fallbackFrom: model,
+      });
       for await (const chunk of streamDemoProject(prompt)) {
         if (signal.aborted) return;
         send({ delta: chunk });
@@ -292,7 +307,11 @@ export async function POST(request: Request) {
   if (!upstream.ok || !upstream.body) {
     const detail = upstream.status === 401 || upstream.status === 403 ? "invalid API key" : `status ${upstream.status}`;
     return makeStream(async (send) => {
-      send({ mode: "demo", notice: `AI provider rejected the request (${detail}) — using the local generator.` });
+      send({
+        mode: "demo",
+        notice: `AI provider rejected ${modelLabel(model)} (${detail}) — the local generator ran instead. Check AI_API_KEY and the model allowlist.`,
+        fallbackFrom: model,
+      });
       for await (const chunk of streamDemoProject(prompt)) {
         send({ delta: chunk });
       }
@@ -300,7 +319,7 @@ export async function POST(request: Request) {
   }
 
   return makeStream(async (send, signal) => {
-    send({ mode: "live", model: config.model });
+    send({ mode: "live", model, modelLabel: modelLabel(model), rejectedModel });
     await pipeUpstream(upstream, send, signal);
   });
 }
@@ -311,7 +330,9 @@ export async function GET() {
     endpoint: "/api/generate",
     method: "POST",
     mode: config.demo ? "demo" : "live",
-    model: config.demo ? "local-generator" : config.model,
+    defaultModel: config.defaultModel,
+    model: config.demo ? "local-generator" : config.defaultModel,
     providerConfigured: !config.demo,
+    selectableModels: "/api/models",
   });
 }
