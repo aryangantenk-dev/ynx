@@ -136,6 +136,12 @@ export default function DocsPage() {
           <span className="font-mono text-[var(--foreground)]">lib/models.ts</span>. Anything
           else is replaced by the deployment default and the response says so.
         </p>
+        <p className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--warning)_35%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_8%,transparent)] p-3 text-[11px] leading-5 text-[var(--warning)]">
+          Advertised ≠ served. On the currently configured provider only{" "}
+          <span className="font-mono">free/gpt-6-luna</span> answered a probe; the
+          others returned 502/503 or timed out. That is why the default model is
+          the verified one and the rest are marked <em>unavailable</em> in the picker.
+        </p>
         <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)]">
           <table className="w-full border-collapse text-xs">
             <thead className="bg-[var(--surface-2)] text-[var(--muted)]">
