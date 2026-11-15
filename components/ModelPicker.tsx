@@ -243,6 +243,14 @@ export default function ModelPicker({
                             default
                           </span>
                         )}
+                        {option.knownDown && (
+                          <span
+                            className="shrink-0 text-[9px] font-semibold uppercase text-[var(--warning)]"
+                            title="Last probe failed for this model on the configured provider"
+                          >
+                            unavailable
+                          </span>
+                        )}
                       </span>
                       <span className="mt-0.5 block text-[10px] leading-4 text-[var(--muted)]">
                         {option.blurb}
