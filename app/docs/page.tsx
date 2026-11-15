@@ -22,7 +22,8 @@ const ENV_ROWS = [
   {
     key: "AI_MODEL",
     required: "Optional",
-    detail: "Model id sent upstream. Defaults to yanzx-builder-v1.",
+    detail:
+      "Deployment default model. Must be one of the ids in lib/models.ts; an unknown id silently falls back to the catalog default.",
   },
   {
     key: "YANZX_API_KEY",
@@ -127,10 +128,52 @@ export default function DocsPage() {
       </section>
 
       <section className="mt-8">
+        <h2 className="text-sm font-semibold">Models</h2>
+        <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+          The picker in the workspace header sends a <em>preference</em>, never an
+          instruction: <span className="font-mono text-[var(--foreground)]">POST /api/generate</span>{" "}
+          only forwards ids present in{" "}
+          <span className="font-mono text-[var(--foreground)]">lib/models.ts</span>. Anything
+          else is replaced by the deployment default and the response says so.
+        </p>
+        <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)]">
+          <table className="w-full border-collapse text-xs">
+            <thead className="bg-[var(--surface-2)] text-[var(--muted)]">
+              <tr>
+                <th scope="col" className="px-3 py-2 text-start font-semibold">Endpoint</th>
+                <th scope="col" className="px-3 py-2 text-start font-semibold">Returns</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-t border-[var(--border)] align-top">
+                <th scope="row" className="px-3 py-2.5 text-start font-mono font-normal text-[var(--foreground)]">
+                  GET /api/models
+                </th>
+                <td className="px-3 py-2.5 leading-5 text-[var(--muted)]">
+                  Catalog, allowlist and the deployment default. No secret values.
+                </td>
+              </tr>
+              <tr className="border-t border-[var(--border)] align-top">
+                <th scope="row" className="px-3 py-2.5 text-start font-mono font-normal text-[var(--foreground)]">
+                  GET /api/models?probe=1
+                </th>
+                <td className="px-3 py-2.5 leading-5 text-[var(--muted)]">
+                  Pings each model with a 1-token completion and reports which are
+                  reachable. Use it after rotating keys to confirm the provider is
+                  actually serving what it advertises.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-8">
         <h2 className="text-sm font-semibold">Local development</h2>
         <pre className="scroll-area mt-3 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 font-mono text-xs leading-6 text-[#C7D0E4]">{`cp .env.example .env.local   # add AI_API_KEY + AI_BASE_URL
 npm install
-npm run dev                 # http://localhost:3000`}</pre>
+npm run dev                 # http://localhost:3000
+curl localhost:3000/api/models?probe=1   # which models actually respond`}</pre>
         <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
           Without a key the app runs in demo mode: the assistant streams a real,
           download-ready scaffold generated locally, and the UI says so plainly.

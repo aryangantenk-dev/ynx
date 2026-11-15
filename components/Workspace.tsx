@@ -16,12 +16,14 @@ import {
 } from "lucide-react";
 import { useGeneration, titleFromPrompt } from "@/lib/use-generation";
 import { languageLabel } from "@/lib/parse-stream";
+import { modelLabel } from "@/lib/models";
 import type { Checkpoint, ProjectFile } from "@/lib/types";
 import AssistantPanel from "./AssistantPanel";
 import Canvas from "./Canvas";
 import CommandPalette, { type Command } from "./CommandPalette";
 import FileTree from "./FileTree";
 import Logo from "./Logo";
+import ModelPicker from "./ModelPicker";
 import OnboardingModal from "./OnboardingModal";
 
 const ONBOARDING_KEY = "yanzx-ai:onboarded:v1";
@@ -61,6 +63,9 @@ export default function Workspace() {
     mode,
     lastPrompt,
     hydrated,
+    model,
+    setModel,
+    activeModel,
     setActiveFile,
     generate,
     stop,
@@ -207,6 +212,12 @@ export default function Workspace() {
         </p>
 
         <div className="ms-auto flex items-center gap-1">
+          <ModelPicker
+            value={model}
+            onChange={setModel}
+            disabled={isGenerating}
+            activeModel={activeModel}
+          />
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
@@ -317,6 +328,7 @@ export default function Workspace() {
             notice={notice}
             error={error}
             checkpoints={checkpoints}
+            model={activeModel}
             onSend={generate}
             onStop={stop}
             onRestore={restore}
@@ -348,7 +360,11 @@ export default function Workspace() {
         </span>
         <span className="ms-auto flex items-center gap-1.5">
           <CommandIcon className="size-3" aria-hidden="true" />
-          {mode === "demo" ? "Demo generator" : mode === "live" ? "Model connected" : "Awaiting prompt"}
+          {mode === "demo"
+            ? "Demo generator"
+            : mode === "live"
+              ? `Streaming · ${activeModel ? modelLabel(activeModel) : "provider"}`
+              : "Awaiting prompt"}
         </span>
         <span className="flex items-center gap-1">
           Built with <Heart className="size-2.5 text-[var(--danger)]" aria-hidden="true" /> by Yanzx AI

@@ -95,7 +95,7 @@ npm run dev                    # http://localhost:3000
 | --- | --- | --- |
 | `AI_API_KEY` | for live mode | Bearer token, server-side only |
 | `AI_BASE_URL` | for live mode | e.g. `https://api.openai.com/v1` |
-| `AI_MODEL` | optional | Model id, defaults to `yanzx-builder-v1` |
+| `AI_MODEL` | optional | Deployment default model — must exist in `lib/models.ts` |
 | `YANZX_API_KEY` | legacy | Read only if `AI_API_KEY` is absent |
 | `AI_DEMO_MODE` | optional | `demo` forces the offline generator |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | optional | Cloud-saved projects |
@@ -135,6 +135,23 @@ data: [DONE]
 
 `GET /api/generate` describes the configured mode; `GET /api/health` returns
 liveness plus `providerConfigured` / `demoMode` booleans.
+
+### Models
+
+The catalog lives in [`lib/models.ts`](lib/models.ts) — shared by the server and
+the picker, with no secrets in it. The picker in the header selects a model per
+request; `POST /api/generate` forwards a model id **only** if it is in the
+catalog, so a client can express a preference but never dictate an arbitrary
+upstream call.
+
+```bash
+curl /api/models            # catalog + deployment default
+curl /api/models?probe=1    # 1-token ping per model: which ones really answer
+```
+
+Probing matters: a provider can advertise models it does not serve. If the
+chosen model fails, the stream falls back to the local generator and the notice
+name the model that failed — it never silently pretends to be live.
 
 ## Deploy
 
